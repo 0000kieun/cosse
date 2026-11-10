@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>영화 티어리스트</title>
+    <style>
+        /* 기본 스타일 설정 */
+        :root {
+            --bg-color: #1e1e1e;
+            --text-color: #ffffff;
+            --card-bg: #333333;
+            --tier-s: #ff7f7f;
+            --tier-a: #ffbf7f;
+            --tier-b: #ffff7f;
+            --tier-c: #7fff7f;
+            --tier-u: #aaaaaa;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        /* 로그인(닉네임 입력) 화면 */
+        #login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #login-screen h1 {
+            margin-bottom: 20px;
+        }
+
+        #login-screen input {
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: none;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        #login-screen button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        /* 메인 앱 화면 */
+        #app-screen {
+            display: none;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* 상단 컨트롤 패널 */
+        .header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #2a2a2a;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .user-info {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .add-movie-form {
+            display: flex;
+            gap: 10px;
+        }
+
+        .add-movie-form input {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: #444;
+            color: white;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+        }
+
+        .btn-add { background-color: #2196F3; }
+        .btn-reset { background-color: #f44336; }
+        .btn-logout { background-color: #777; }
+
+        /* 티어 보드 */
+        .tier-board {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .tier-row {
+            display: flex;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 140px;
+        }
+
+        .tier-label {
+            width: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+            flex-shrink: 0;
+        }
+
+        .label-S { background-color: var(--tier-s); }
+        .label-A { background-color: var(--tier-a); }
+        .label-B { background-color: var(--tier-b); }
+        .label-C { background-color: var(--tier-c); }
+        .label-UNWATCHED { background-color: var(--tier-u); font-size: 1.2rem; }
+
+        .tier-movies {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 15px;
+            flex-grow: 1;
+        }
+
+        /* 영화 카드 */
+        .movie-card {
+            background-color: var(--card-bg);
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 10px;
+            width: 160px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .movie-title {
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+            margin-top: 15px;
+            text-align: center;
+            word-break: keep-all;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-delete {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: transparent;
+            border: none;
+            color: #ff4444;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .tier-select {
+            width: 100%;
+            padding: 4px;
+            margin-bottom: 10px;
+            background: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 4px;
+        }
+
+        .card-controls {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .btn-move {
+            background: #555;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-move:hover { background: #777; }
+        .btn-move:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    </style>
+</head>
+<body>
+
+    <!-- 닉네임 입력 화면 -->
+    <div id="login-screen">
+        <h1>🎬 영화 티어리스트</h1>
+        <input type="text" id="nickname-input" placeholder="닉네임을 입력하세요" onkeypress="handleLoginEnter(event)">
+        <button onclick="startApp()">시작하기</button>
+    </div>
+
+    <!-- 메인 앱 화면 -->
+    <div id="app-screen">
+        <div class="header-controls">
+            <div class="user-info">
+                <span id="display-nickname"></span>님의 티어리스트
+            </div>
+            
+            <div class="add-movie-form">
+                <input type="text" id="new-movie-input" placeholder="새 영화 제목 입력" onkeypress="handleAddEnter(event)">
+                <button class="btn btn-add" onclick="addMovie()">추가</button>
+            </div>
+
+            <div>
+                <button class="btn btn-reset" onclick="resetTiers()">초기화</button>
+                <button class="btn btn-logout" onclick="logout()">로그아웃</button>
+            </div>
+        </div>
+
+        <div class="tier-board">
+            <!-- S 등급 -->
+            <div class="tier-row">
+                <div class="tier-label label-S">S</div>
+                <div class="tier-movies" id="tier-S"></div>
+            </div>
+            <!-- A 등급 -->
+            <div class="tier-row">
+                <div class="tier-label label-A">A</div>
+                <div class="tier-movies" id="tier-A"></div>
+            </div>
+            <!-- B 등급 -->
+            <div class="tier-row">
+                <div class="tier-label label-B">B</div>
+                <div class="tier-movies" id="tier-B"></div>
+            </div>
+            <!-- C 등급 -->
+            <div class="tier-row">
+                <div class="tier-label label-C">C</div>
+                <div class="tier-movies" id="tier-C"></div>
+            </div>
+            <!-- 미관람 -->
+            <div class="tier-row">
+                <div class="tier-label label-UNWATCHED">미관람</div>
+                <div class="tier-movies" id="tier-UNWATCHED"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 기본 영화 목록 20개
+        const defaultMovies = [
+            "파묘 (Exhuma)", "범죄도시4 (The Roundup: Punishment)", "베테랑2 (I, the Executioner)",
+            "하얼빈 (Harbin)", "검은 수녀들 (Dark Nuns)", "호프 (HOPE)", "전,란 (Uprising)",
+            "부활남 (Resurrection Man)", "왕을 찾아서 (Seeking the King)", "기생수: 더 그레이 (The Grey)",
+            "기생충 (Parasite)", "인터스텔라 (Interstellar)", "인셉션 (Inception)", "올드보이 (Oldboy)",
+            "타이타닉 (Titanic)", "쇼생크 탈출 (The Shawshank Redemption)", "다크 나이트 (The Dark Knight)",
+            "라라랜드 (La La Land)", "어바웃 타임 (About Time)", "센과 치히로의 행방불명 (Spirited Away)"
+        ];
+
+        // 앱 상태 데이터
+        let appData = {
+            nickname: "",
+            tiers: {
+                S: [],
+                A: [],
+                B: [],
+                C: [],
+                UNWATCHED: []
+            }
+        };
+
+        // 초기화 및 로컬스토리지 로드
+        function init() {
+            const savedData = localStorage.getItem('movieTierData');
+            if (savedData) {
+                appData = JSON.parse(savedData);
+                if (appData.nickname) {
+                    showAppScreen();
+                    render();
+                }
+            }
+        }
+
+        // 로그인 엔터키 처리
+        function handleLoginEnter(e) {
+            if (e.key === 'Enter') startApp();
+        }
+
+        // 영화 추가 엔터키 처리
+        function handleAddEnter(e) {
+            if (e.key === 'Enter') addMovie();
+        }
+
+        // 시작하기 (로그인)
+        function startApp() {
+            const nickname = document.getElementById('nickname-input').value.trim();
+            if (!nickname) {
+                alert("닉네임을 입력해주세요!");
+                return;
+            }
+
+            appData.nickname = nickname;
+            
+            // 처음 시작하는 경우 기본 영화 세팅
+            const isFirstTime = Object.values(appData.tiers).every(arr => arr.length === 0);
+            if (isFirstTime) {
+                appData.tiers.UNWATCHED = defaultMovies.map(title => ({
+                    id: Date.now() + Math.random(), // 고유 ID 생성
+                    title: title
+                }));
+            }
+
+            saveData();
+            showAppScreen();
+            render();
+        }
+
+        // 화면 전환
+        function showAppScreen() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-screen').style.display = 'block';
+            document.getElementById('display-nickname').innerText = appData.nickname;
+        }
+
+        // 로그아웃
+        function logout() {
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app-screen').style.display = 'none';
+            document.getElementById('nickname-input').value = '';
+        }
+
+        // 데이터 저장
+        function saveData() {
+            localStorage.setItem('movieTierData', JSON.stringify(appData));
+        }
+
+        // 화면 렌더링
+        function render() {
+            const tierKeys = ['S', 'A', 'B', 'C', 'UNWATCHED'];
+            
+            tierKeys.forEach(tier => {
+                const container = document.getElementById(`tier-${tier}`);
+                container.innerHTML = ''; // 기존 내용 비우기
+
+                appData.tiers[tier].forEach((movie, index) => {
+                    const isFirst = index === 0;
+                    const isLast = index === appData.tiers[tier].length - 1;
+
+                    const card = document.createElement('div');
+                    card.className = 'movie-card';
+                    
+                    card.innerHTML = `
+                        <button class="btn-delete" onclick="deleteMovie('${tier}', ${movie.id})" title="삭제">X</button>
+                        <div class="movie-title">${movie.title}</div>
+                        
+                        <select class="tier-select" onchange="changeTier('${tier}', ${movie.id}, this.value)">
+                            <option value="S" ${tier === 'S' ? 'selected' : ''}>S 등급으로 이동</option>
+                            <option value="A" ${tier === 'A' ? 'selected' : ''}>A 등급으로 이동</option>
+                            <option value="B" ${tier === 'B' ? 'selected' : ''}>B 등급으로 이동</option>
+                            <option value="C" ${tier === 'C' ? 'selected' : ''}>C 등급으로 이동</option>
+                            <option value="UNWATCHED" ${tier === 'UNWATCHED' ? 'selected' : ''}>미관람으로 이동</option>
+                        </select>
+
+                        <div class="card-controls">
+                            <button class="btn-move" onclick="moveMovie('${tier}', ${index}, -1)" ${isFirst ? 'disabled' : ''}>←</button>
+                            <button class="btn-move" onclick="moveMovie('${tier}', ${index}, 1)" ${isLast ? 'disabled' : ''}>→</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            });
+        }
+
+        // 영화 추가
+        function addMovie() {
+            const input = document.getElementById('new-movie-input');
+            const title = input.value.trim();
+            
+            if (!title) {
+                alert("영화 제목을 입력해주세요!");
+                return;
+            }
+
+            appData.tiers.UNWATCHED.push({
+                id: Date.now() + Math.random(),
+                title: title
+            });
+
+            input.value = '';
+            saveData();
+            render();
+        }
+
+        // 영화 삭제
+        function deleteMovie(tier, id) {
+            if(confirm("정말 이 영화를 삭제하시겠습니까?")) {
+                appData.tiers[tier] = appData.tiers[tier].filter(m => m.id !== id);
+                saveData();
+                render();
+            }
+        }
+
+        // 등급 변경 (드롭다운 선택 시)
+        function changeTier(oldTier, id, newTier) {
+            if (oldTier === newTier) return;
+
+            // 기존 등급에서 영화 찾기 및 제거
+            const movieIndex = appData.tiers[oldTier].findIndex(m => m.id === id);
+            const movie = appData.tiers[oldTier].splice(movieIndex, 1)[0];
+
+            // 새 등급에 추가
+            appData.tiers[newTier].push(movie);
+
+            saveData();
+            render();
+        }
+
+        // 같은 등급 내 순서 변경 (좌우 이동)
+        function moveMovie(tier, index, direction) {
+            const array = appData.tiers[tier];
+            const newIndex = index + direction;
+
+            if (newIndex >= 0 && newIndex < array.length) {
+                // 배열 요소 위치 교환
+                [array[index], array[newIndex]] = [array[newIndex], array[index]];
+                saveData();
+                render();
+            }
+        }
+
+        // 평가 초기화
+        function resetTiers() {
+            if(confirm("모든 평가를 초기화하고 미관람 상태로 되돌리시겠습니까?")) {
+                const allMovies = [
+                    ...appData.tiers.S,
+                    ...appData.tiers.A,
+                    ...appData.tiers.B,
+                    ...appData.tiers.C,
+                    ...appData.tiers.UNWATCHED
+                ];
+
+                appData.tiers.S = [];
+                appData.tiers.A = [];
+                appData.tiers.B = [];
+                appData.tiers.C = [];
+                appData.tiers.UNWATCHED = allMovies;
+
+                saveData();
+                render();
+            }
+        }
+
+        // 앱 실행
+        init();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+```html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>영화 티어리스트</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "맑은 고딕", "Malgun Gothic", sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    padding: 20px;
+  }
+  h1 { text-align: center; margin-bottom: 20px; color: #fff; }
+
+  /* 상단 바 */
+  .topbar {
+    max-width: 1000px;
+    margin: 0 auto 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    background: #16213e;
+    padding: 16px;
+    border-radius: 12px;
+  }
+  .topbar input {
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    min-width: 160px;
+  }
+  .topbar button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #0f3460;
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .topbar button:hover { background: #53a8b6; }
+  #resetBtn { background: #8b0000; }
+  #resetBtn:hover { background: #c0392b; }
+  #greeting { width: 100%; text-align: center; color: #53a8b6; font-weight: bold; }
+
+  /* 안내 문구 */
+  .hint {
+    max-width: 1000px;
+    margin: 0 auto 14px;
+    text-align: center;
+    color: #8a9ab0;
+    font-size: 13px;
+    min-height: 18px;
+  }
+
+  /* 티어 섹션 */
+  .tier {
+    max-width: 1000px;
+    margin: 0 auto 14px;
+    display: flex;
+    border-radius: 10px;
+    overflow: hidden;
+    min-height: 90px;
+    cursor: pointer;            /* 티어 영역 클릭 가능 표시 */
+  }
+  .tier-label {
+    width: 80px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    font-weight: bold;
+    color: #1a1a2e;
+  }
+  .tier-S .tier-label { background: #ff7f7f; }
+  .tier-A .tier-label { background: #ffbf7f; }
+  .tier-B .tier-label { background: #ffff7f; }
+  .tier-C .tier-label { background: #7fffbf; }
+  .tier-N .tier-label { background: #bfbfbf; font-size: 16px; }
+
+  .tier-cards {
+    flex: 1;
+    background: #0f1626;
+    padding: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-content: flex-start;
+  }
+
+  /* 이동 대상이 선택됐을 때 티어 영역 강조 */
+  .tier.movable .tier-cards {
+    outline: 2px dashed #53a8b6;
+    outline-offset: -6px;
+  }
+
+  /* 영화 카드 */
+  .card {
+    background: #16213e;
+    border: 1px solid #2d4059;
+    border-radius: 8px;
+    padding: 10px;
+    width: 150px;
+    position: relative;
+  }
+  .card.selected {
+    border-color: #53a8b6;
+    box-shadow: 0 0 0 2px #53a8b6;
+  }
+  .card-title { font-size: 14px; margin-bottom: 8px; word-break: keep-all; cursor: pointer; }
+  .card-del {
+    position: absolute;
+    top: 4px; right: 6px;
+    background: transparent;
+    border: none;
+    color: #e74c3c;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  .card-moves { display: flex; justify-content: space-between; }
+  .card-moves button {
+    background: #0f3460;
+    border: none;
+    color: #fff;
+    border-radius: 5px;
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+  .card-moves button:hover { background: #53a8b6; }
+</style>
+</head>
+<body>
+  <h1>🎬 영화 티어리스트</h1>
+
+  <div class="topbar">
+    <input type="text" id="nickInput" placeholder="닉네임 입력">
+    <button id="nickBtn">시작</button>
+    <input type="text" id="movieInput" placeholder="영화 제목 추가">
+    <button id="addBtn">추가</button>
+    <button id="resetBtn">초기화</button>
+    <div id="greeting"></div>
+  </div>
+
+  <div class="hint" id="hint">카드를 클릭해 선택한 뒤, 원하는 등급 영역을 클릭하면 이동합니다.</div>
+
+  <div id="tiers"></div>
+
+<script>
+  const TIERS = [
+    { key: "S", name: "S", cls: "tier-S" },
+    { key: "A", name: "A", cls: "tier-A" },
+    { key: "B", name: "B", cls: "tier-B" },
+    { key: "C", name: "C", cls: "tier-C" },
+    { key: "N", name: "미관람", cls: "tier-N" },
+  ];
+
+  const DEFAULT_MOVIES = [
+    "파묘", "범죄도시4", "베테랑2", "하얼빈", "검은 수녀들",
+    "호프", "전,란", "부활남", "왕을 찾아서", "기생수: 더 그레이",
+    "기생충", "인터스텔라", "인셉션", "올드보이", "타이타닉",
+    "쇼생크 탈출", "다크 나이트", "라라랜드", "어바웃 타임", "센과 치히로의 행방불명"
+  ];
+
+  let state = load();
+  let selectedId = null;   // 현재 선택된 카드 id
+
+  function load() {
+    const saved = localStorage.getItem("tierState");
+    if (saved) return JSON.parse(saved);
+    return {
+      nickname: "",
+      movies: DEFAULT_MOVIES.map((t, i) => ({ id: i + 1, title: t, tier: "N" }))
+    };
+  }
+
+  function save() {
+    localStorage.setItem("tierState", JSON.stringify(state));
+  }
+
+  function render() {
+    document.getElementById("greeting").textContent =
+      state.nickname ? `${state.nickname}님의 티어리스트` : "";
+
+    const container = document.getElementById("tiers");
+    container.innerHTML = "";
+
+    TIERS.forEach(tier => {
+      const section = document.createElement("div");
+      section.className = "tier " + tier.cls;
+      if (selectedId !== null) section.classList.add("movable");
+
+      // 티어 영역(라벨·빈칸 포함) 클릭 → 선택된 카드 이동
+      section.onclick = () => moveToTier(tier.key);
+
+      const label = document.createElement("div");
+      label.className = "tier-label";
+      label.textContent = tier.name;
+      section.appendChild(label);
+
+      const cards = document.createElement("div");
+      cards.className = "tier-cards";
+
+      const list = state.movies.filter(m => m.tier === tier.key);
+      list.forEach((movie, idx) => {
+        cards.appendChild(makeCard(movie, tier.key, idx, list.length));
+      });
+
+      section.appendChild(cards);
+      container.appendChild(section);
+    });
+  }
+
+  function makeCard(movie, tierKey, idx, total) {
+    const card = document.createElement("div");
+    card.className = "card";
+    if (movie.id === selectedId) card.classList.add("selected");
+
+    const del = document.createElement("button");
+    del.className = "card-del";
+    del.textContent = "×";
+    del.onclick = (e) => { e.stopPropagation(); deleteMovie(movie.id); };
+
+    const title = document.createElement("div");
+    title.className = "card-title";
+    title.textContent = movie.title;
+    // 카드(제목) 클릭 → 선택/해제 토글
+    title.onclick = (e) => { e.stopPropagation(); toggleSelect(movie.id); };
+
+    const moves = document.createElement("div");
+    moves.className = "card-moves";
+    const left = document.createElement("button");
+    left.textContent = "←";
+    left.onclick = (e) => { e.stopPropagation(); moveWithin(movie.id, -1); };
+    const right = document.createElement("button");
+    right.textContent = "→";
+    right.onclick = (e) => { e.stopPropagation(); moveWithin(movie.id, 1); };
+    moves.appendChild(left);
+    moves.appendChild(right);
+
+    card.appendChild(del);
+    card.appendChild(title);
+    card.appendChild(moves);
+
+    return card;
+  }
+
+  // 카드 선택/해제
+  function toggleSelect(id) {
+    selectedId = (selectedId === id) ? null : id;
+    render();
+  }
+
+  // 선택된 카드를 클릭한 티어로 이동
+  function moveToTier(tierKey) {
+    if (selectedId === null) return;      // 선택된 카드가 없으면 무시
+    const movie = state.movies.find(m => m.id === selectedId);
+    if (movie.tier !== tierKey) {
+      movie.tier = tierKey;
+      save();
+    }
+    selectedId = null;    // 이동 후 선택 해제
+    render();
+  }
+
+  function moveWithin(id, dir) {
+    const movie = state.movies.find(m => m.id === id);
+    const sameTier = state.movies.filter(m => m.tier === movie.tier);
+    const pos = sameTier.indexOf(movie);
+    const target = pos + dir;
+    if (target < 0 || target >= sameTier.length) return;
+
+    const a = state.movies.indexOf(sameTier[pos]);
+    const b = state.movies.indexOf(sameTier[target]);
+    [state.movies[a], state.movies[b]] = [state.movies[b], state.movies[a]];
+    save();
+    render();
+  }
+
+  function deleteMovie(id) {
+    state.movies = state.movies.filter(m => m.id !== id);
+    if (selectedId === id) selectedId = null;
+    save();
+    render();
+  }
+
+  function addMovie() {
+    const input = document.getElementById("movieInput");
+    const title = input.value.trim();
+    if (!title) return;
+    const newId = state.movies.length ? Math.max(...state.movies.map(m => m.id)) + 1 : 1;
+    state.movies.push({ id: newId, title, tier: "N" });
+    input.value = "";
+    save();
+    render();
+  }
+
+  function resetTiers() {
+    if (!confirm("모든 평가를 초기화할까요? (영화는 미관람으로 돌아갑니다)")) return;
+    state.movies.forEach(m => m.tier = "N");
+    selectedId = null;
+    save();
+    render();
+  }
+
+  // 이벤트 연결
+  document.getElementById("addBtn").onclick = addMovie;
+  document.getElementById("movieInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") addMovie();
+  });
+
+  document.getElementById("nickBtn").onclick = () => {
+    const nick = document.getElementById("nickInput").value.trim();
+    if (nick) { state.nickname = nick; save(); render(); }
+  };
+  document.getElementById("nickInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("nickBtn").click();
+  });
+
+  document.getElementById("resetBtn").onclick = resetTiers;
+
+  // 초기 화면
+  document.getElementById("nickInput").value = state.nickname;
+  render();
+</script>
+</body>
+</html>
