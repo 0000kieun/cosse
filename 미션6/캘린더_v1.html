@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>미니멀 활동 기록 캘린더</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Malgun Gothic', sans-serif;
+    background: #f5f5f7;
+    padding: 20px;
+    color: #333;
+  }
+  .app { max-width: 720px; margin: 0 auto; }
+
+  /* 상단 헤더 (제목 + 뷰 전환) */
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px;
+  }
+  .header h1 { font-size: 20px; }
+
+  /* 이동/전환 컨트롤 */
+  .controls {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; gap: 8px;
+  }
+  .controls .nav { display: flex; align-items: center; gap: 8px; }
+  button {
+    cursor: pointer; border: none; border-radius: 8px;
+    padding: 8px 14px; font-size: 14px; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.15s;
+  }
+  button:hover { background: #eee; }
+  .title-label { font-size: 16px; font-weight: bold; min-width: 120px; text-align: center; }
+  .view-btn { background: #BAE1FF; }
+
+  /* 달력 그리드 */
+  .weekdays, .grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+  }
+  .weekdays div {
+    text-align: center; font-size: 12px; font-weight: bold;
+    padding: 6px 0; color: #888;
+  }
+  .weekdays .sun { color: #e57373; }
+  .weekdays .sat { color: #64b5f6; }
+
+  .cell {
+    background: #fff; border-radius: 8px; min-height: 80px;
+    padding: 4px; cursor: pointer; position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    transition: 0.15s; overflow: hidden;
+  }
+  .cell:hover { box-shadow: 0 0 0 2px #BAE1FF inset; }
+  .cell.empty { background: transparent; cursor: default; }
+  .cell.today .date-num {
+    background: #ff8a80; color: #fff; border-radius: 50%;
+  }
+  .date-num {
+    align-self: flex-start; font-size: 12px; font-weight: bold;
+    width: 20px; height: 20px; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .main-icon { font-size: 26px; line-height: 1; margin-top: 2px; }
+  .sub-icons { font-size: 12px; line-height: 1.2; text-align: center; }
+
+  /* 주간 뷰일 때 칸 높이 */
+  .grid.week .cell { min-height: 140px; }
+
+  /* 팝업(모달) */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); justify-content: center; align-items: center;
+    z-index: 10;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; padding: 20px;
+    width: 300px; max-width: 90%;
+  }
+  .modal h3 { font-size: 16px; margin-bottom: 14px; }
+  .section-label { font-size: 13px; color: #888; margin: 10px 0 6px; }
+  .icon-list, .color-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .icon-opt {
+    font-size: 24px; padding: 6px; border-radius: 8px;
+    cursor: pointer; border: 2px solid transparent;
+  }
+  .icon-opt.selected { border-color: #ff8a80; background: #fff3f0; }
+  .color-opt {
+    width: 30px; height: 30px; border-radius: 50%;
+    cursor: pointer; border: 2px solid #ddd;
+  }
+  .color-opt.selected { border-color: #333; transform: scale(1.1); }
+  .modal-btns { display: flex; gap: 8px; margin-top: 18px; }
+  .modal-btns button { flex: 1; }
+  .btn-save { background: #BAFFC9; }
+  .btn-clear { background: #FFB3BA; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>📅 활동 기록 캘린더</h1>
+    <button id="toggleView" class="view-btn">주간 뷰</button>
+  </div>
+
+  <div class="controls">
+    <div class="nav">
+      <button id="prevBtn">◀</button>
+      <span id="titleLabel" class="title-label"></span>
+      <button id="nextBtn">▶</button>
+    </div>
+    <button id="todayBtn">오늘</button>
+  </div>
+
+  <div class="weekdays">
+    <div class="sun">일</div><div>월</div><div>화</div>
+    <div>수</div><div>목</div><div>금</div><div class="sat">토</div>
+  </div>
+  <div id="grid" class="grid"></div>
+</div>
+
+<!-- 입력 팝업 -->
+<div id="modalBg" class="modal-bg">
+  <div class="modal">
+    <h3 id="modalTitle">날짜 기록</h3>
+    <div class="section-label">아이콘 (처음 고른 것이 메인 · 최대 5개)</div>
+    <div id="iconList" class="icon-list"></div>
+    <div class="section-label">색상 (1개)</div>
+    <div id="colorList" class="color-list"></div>
+    <div class="modal-btns">
+      <button class="btn-clear" id="clearBtn">클리어</button>
+      <button class="btn-save" id="saveBtn">저장</button>
+      <button id="cancelBtn">취소</button>
+    </div>
+  </div>
+</div>
+
+          <script>
+  // ===== 데이터 준비 =====
+  const icons = ['🏃‍♂️', '📚', '💻', '☕', '🎉'];
+  const colors = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#E6B3FF'];
+  const STORAGE_KEY = 'calendar_data';
+
+  // 로컬 스토리지에서 데이터 불러오기 (없으면 빈 객체)
+  let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+
+  // ===== 상태 변수 =====
+  let viewMode = 'month';          // 'month' | 'week'
+  let current = new Date();        // 현재 보고 있는 기준 날짜
+  let selectedDate = null;         // 팝업에서 편집 중인 날짜
+  let tempIcons = [];              // 팝업 임시 선택 아이콘
+  let tempColor = null;            // 팝업 임시 선택 색상
+
+  // ===== 유틸: 날짜 → 'YYYY-MM-DD' 문자열 =====
+  function toKey(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  const todayKey = toKey(new Date());
+
+  // ===== 달력 렌더링 =====
+  function render() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    grid.className = 'grid' + (viewMode === 'week' ? ' week' : '');
+
+    let days = [];
+
+    if (viewMode === 'month') {
+      const year = current.getFullYear();
+      const month = current.getMonth();
+      const first = new Date(year, month, 1);
+      const last = new Date(year, month + 1, 0);
+      for (let i = 0; i < first.getDay(); i++) days.push(null);
+      for (let d = 1; d <= last.getDate(); d++) days.push(new Date(year, month, d));
+      document.getElementById('titleLabel').textContent = `${year}년 ${month + 1}월`;
+    } else {
+      // 주간 뷰: current가 포함된 주의 일요일부터 7일
+      const sunday = new Date(current);
+      sunday.setDate(current.getDate() - current.getDay());
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(sunday);
+        d.setDate(sunday.getDate() + i);
+        days.push(d);
+      }
+      const s = days[0], e = days[6];
+      document.getElementById('titleLabel').textContent =
+        `${s.getMonth() + 1}/${s.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}`;
+    }
+
+    days.forEach(d => {
+      const cell = document.createElement('div');
+      if (!d) { cell.className = 'cell empty'; grid.appendChild(cell); return; }
+
+      const key = toKey(d);
+      cell.className = 'cell' + (key === todayKey ? ' today' : '');
+
+      const num = document.createElement('div');
+      num.className = 'date-num';
+      num.textContent = d.getDate();
+      cell.appendChild(num);
+
+      const rec = data[key];
+      if (rec) {
+        if (rec.color) cell.style.background = rec.color;
+        if (rec.icons && rec.icons.length) {
+          const main = document.createElement('div');
+          main.className = 'main-icon';
+          main.textContent = rec.icons[0];      // 첫 번째 = 메인(큰 사이즈)
+          cell.appendChild(main);
+          if (rec.icons.length > 1) {
+            const subs = document.createElement('div');
+            subs.className = 'sub-icons';
+            subs.textContent = rec.icons.slice(1).join(' '); // 나머지 작게
+            cell.appendChild(subs);
+          }
+        }
+      }
+
+      cell.onclick = () => openModal(key);  // 날짜 클릭 → 항상 팝업
+      grid.appendChild(cell);
+    });
+  }
+
+  // ===== 팝업 열기 =====
+  function openModal(key) {
+    selectedDate = key;
+    const rec = data[key] || {};
+    tempIcons = rec.icons ? [...rec.icons] : [];
+    tempColor = rec.color || null;
+    document.getElementById('modalTitle').textContent = `${key} 기록`;
+    renderModalOptions();
+    document.getElementById('modalBg').classList.add('open');
+  }
+
+  // ===== 팝업 내 아이콘/색상 옵션 그리기 =====
+  function renderModalOptions() {
+    // 아이콘
+    const iconList = document.getElementById('iconList');
+    iconList.innerHTML = '';
+    icons.forEach(ic => {
+      const el = document.createElement('div');
+      el.className = 'icon-opt' + (tempIcons.includes(ic) ? ' selected' : '');
+      el.textContent = ic;
+      el.onclick = () => {
+        if (tempIcons.includes(ic)) {
+          // 토글: 이미 선택된 아이콘이면 해제
+          tempIcons = tempIcons.filter(x => x !== ic);
+        } else if (tempIcons.length < 5) {
+          // 최대 5개까지만 추가 (추가된 순서가 유지됨 → 첫 번째가 메인)
+          tempIcons.push(ic);
+        } else {
+          alert('아이콘은 최대 5개까지 선택할 수 있어요!');
+        }
+        renderModalOptions(); // 다시 그려서 선택 표시 갱신
+      };
+      iconList.appendChild(el);
+    });
+
+    // 색상 (1개만 선택)
+    const colorList = document.getElementById('colorList');
+    colorList.innerHTML = '';
+    colors.forEach(c => {
+      const el = document.createElement('div');
+      el.className = 'color-opt' + (tempColor === c ? ' selected' : '');
+      el.style.background = c;
+      el.onclick = () => {
+        // 같은 색을 다시 누르면 해제, 아니면 교체
+        tempColor = (tempColor === c) ? null : c;
+        renderModalOptions();
+      };
+      colorList.appendChild(el);
+    });
+  }
+
+  // ===== 팝업 닫기 =====
+  function closeModal() {
+    document.getElementById('modalBg').classList.remove('open');
+    selectedDate = null;
+  }
+
+  // ===== 저장 =====
+  function save() {
+    if (!selectedDate) return;
+    // 아이콘도 색상도 없으면 기록 자체를 삭제 (빈 데이터 방지)
+    if (tempIcons.length === 0 && !tempColor) {
+      delete data[selectedDate];
+    } else {
+      data[selectedDate] = { icons: tempIcons, color: tempColor };
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    closeModal();
+    render();
+  }
+
+  // ===== 클리어(해당 날짜 기록 삭제) =====
+  function clearRecord() {
+    if (!selectedDate) return;
+    delete data[selectedDate];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    closeModal();
+    render();
+  }
+
+  // ===== 이벤트 연결 =====
+  document.getElementById('prevBtn').onclick = () => {
+    if (viewMode === 'month') current.setMonth(current.getMonth() - 1);
+    else current.setDate(current.getDate() - 7); // 이전 주
+    render();
+  };
+  document.getElementById('nextBtn').onclick = () => {
+    if (viewMode === 'month') current.setMonth(current.getMonth() + 1);
+    else current.setDate(current.getDate() + 7); // 다음 주
+    render();
+  };
+  document.getElementById('todayBtn').onclick = () => {
+    current = new Date();  // 오늘 기준으로 리셋
+    render();
+  };
+  document.getElementById('toggleView').onclick = (e) => {
+    if (viewMode === 'month') {
+      viewMode = 'week';
+      current = new Date();          // 주간 전환 시 '이번 주(오늘 포함)' 기준
+      e.target.textContent = '월간 뷰';
+    } else {
+      viewMode = 'month';
+      e.target.textContent = '주간 뷰';
+    }
+    render();
+  };
+  document.getElementById('saveBtn').onclick = save;
+  document.getElementById('clearBtn').onclick = clearRecord;
+  document.getElementById('cancelBtn').onclick = closeModal;
+  // 모달 바깥 영역 클릭 시 닫기
+  document.getElementById('modalBg').onclick = (e) => {
+    if (e.target.id === 'modalBg') closeModal();
+  };
+
+  // ===== 최초 실행 =====
+  render();
+</script>
+</body>
+</html>
